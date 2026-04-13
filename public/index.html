@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSV Manager</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 20px; font-weight: 600; }
+    header span { font-size: 13px; color: #666; }
+
+    main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
+
+    /* Upload card */
+    .card {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+
+    .upload-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+    .field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 180px; }
+    label { font-size: 12px; font-weight: 500; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    input[type="text"], input[type="file"] {
+      padding: 9px 12px;
+      border: 1px solid #d0d0d0;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      background: #fafafa;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus { border-color: #0071e3; background: #fff; }
+    input[type="file"] { padding: 7px 12px; cursor: pointer; }
+
+    .btn {
+      padding: 9px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: 0.5; cursor: default; }
+    .btn-primary { background: #0071e3; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #005bbf; }
+    .btn-secondary { background: #f0f0f0; color: #333; }
+    .btn-secondary:hover:not(:disabled) { background: #e0e0e0; }
+    .btn-danger { background: #ff3b30; color: #fff; }
+    .btn-danger:hover:not(:disabled) { background: #d0251a; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* Status bar */
+    #status {
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    #status.success { background: #d4f5e2; color: #1a6b38; border: 1px solid #a3e0bc; display: block; }
+    #status.error   { background: #fde8e6; color: #991b0e; border: 1px solid #f5b5af; display: block; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead th {
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    tbody tr { border-bottom: 1px solid #f0f0f0; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #fafafa; }
+    td { padding: 12px; vertical-align: middle; }
+
+    .alias-cell { font-weight: 500; }
+    .alias-edit-form { display: flex; gap: 8px; align-items: center; }
+    .alias-edit-input { flex: 1; }
+    .filename-cell { color: #555; font-size: 13px; }
+    .size-cell { color: #888; font-size: 13px; white-space: nowrap; }
+    .date-cell { color: #888; font-size: 13px; white-space: nowrap; }
+    .actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: #999;
+    }
+    .empty-state p { font-size: 15px; margin-bottom: 6px; }
+    .empty-state small { font-size: 13px; }
+
+    /* Modal overlay for replace file */
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.35);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100;
+    }
+    .modal {
+      background: #fff;
+      border-radius: 14px;
+      padding: 28px;
+      width: 420px;
+      max-width: 90vw;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+    .modal h3 { font-size: 16px; margin-bottom: 16px; }
+    .modal .field { margin-bottom: 16px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+    /* Copy URL tooltip */
+    .copy-btn { position: relative; }
+    .copy-btn .tooltip {
+      position: absolute;
+      bottom: 130%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .copy-btn.copied .tooltip { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+    <rect width="28" height="28" rx="8" fill="#0071e3"/>
+    <path d="M7 9h14M7 14h14M7 19h8" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+  <h1>CSV Manager</h1>
+  <span>Upload and manage CSV files for your analytics pipeline</span>
+</header>
+
+<main>
+
+  <div id="status"></div>
+
+  <!-- Upload Form -->
+  <div class="card">
+    <h2>Upload New File</h2>
+    <form id="uploadForm" enctype="multipart/form-data">
+      <div class="upload-row">
+        <div class="field">
+          <label for="aliasInput">File Name / Alias</label>
+          <input type="text" id="aliasInput" name="name" placeholder="e.g. Q1 Sales Data" />
+        </div>
+        <div class="field">
+          <label for="fileInput">CSV File</label>
+          <input type="file" id="fileInput" name="file" accept=".csv" required />
+        </div>
+        <button type="submit" class="btn btn-primary" id="uploadBtn">Upload</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- File List -->
+  <div class="card">
+    <h2>Files</h2>
+    <div class="table-wrap">
+      <table id="fileTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Original Filename</th>
+            <th>Size</th>
+            <th>Uploaded</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="fileList">
+          <tr><td colspan="5"><div class="empty-state"><p>No files yet</p><small>Upload a CSV file to get started</small></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- Replace File Modal -->
+<div id="replaceModal" class="modal-backdrop" style="display:none;">
+  <div class="modal">
+    <h3>Replace File</h3>
+    <form id="replaceForm" enctype="multipart/form-data">
+      <input type="hidden" id="replaceId" />
+      <div class="field">
+        <label for="replaceFileInput">New CSV File</label>
+        <input type="file" id="replaceFileInput" name="file" accept=".csv" required />
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeReplaceModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Replace</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const API = '/api/files';
+
+  // --- Status bar ---
+  let statusTimer;
+  function showStatus(msg, type = 'success') {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = type;
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => { el.className = ''; el.style.display = 'none'; }, 4000);
+  }
+
+  // --- Helpers ---
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function formatDate(iso) {
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  // --- Load file list ---
+  async function loadFiles() {
+    const res = await fetch(API);
+    const files = await res.json();
+    const tbody = document.getElementById('fileList');
+
+    if (!files.length) {
+      tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><p>No files yet</p><small>Upload a CSV file to get started</small></div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = files.map(f => `
+      <tr data-id="${f.id}">
+        <td class="alias-cell">
+          <span class="alias-display">${escHtml(f.alias)}</span>
+          <form class="alias-edit-form" style="display:none;" onsubmit="saveRename(event, '${f.id}')">
+            <input class="btn alias-edit-input" type="text" value="${escHtml(f.alias)}" required />
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="cancelRename('${f.id}')">Cancel</button>
+          </form>
+        </td>
+        <td class="filename-cell">${escHtml(f.originalFilename)}</td>
+        <td class="size-cell">${formatSize(f.size)}</td>
+        <td class="date-cell">${formatDate(f.updatedAt || f.uploadedAt)}</td>
+        <td class="actions-cell">
+          <button class="btn btn-secondary btn-sm copy-btn" onclick="copyUrl('${f.id}', this)" title="Copy raw CSV URL for use in scripts">
+            Copy URL
+            <span class="tooltip">Copied!</span>
+          </button>
+          <a href="${API}/${f.id}" class="btn btn-secondary btn-sm" download>Download</a>
+          <button class="btn btn-secondary btn-sm" onclick="startRename('${f.id}')">Rename</button>
+          <button class="btn btn-secondary btn-sm" onclick="openReplaceModal('${f.id}')">Replace</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteFile('${f.id}', '${escHtml(f.alias)}')">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // --- Upload ---
+  document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const btn = document.getElementById('uploadBtn');
+    btn.disabled = true;
+    btn.textContent = 'Uploading...';
+
+    const data = new FormData(form);
+    if (!data.get('name')) data.set('name', data.get('file').name.replace(/\.csv$/i, ''));
+
+    try {
+      const res = await fetch(API, { method: 'POST', body: data });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Upload failed');
+      showStatus(`"${json.alias}" uploaded successfully.`);
+      form.reset();
+      loadFiles();
+    } catch (err) {
+      showStatus(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Upload';
+    }
+  });
+
+  // --- Rename ---
+  function startRename(id) {
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    row.querySelector('.alias-display').style.display = 'none';
+    row.querySelector('.alias-edit-form').style.display = 'flex';
+    row.querySelector('.alias-edit-input').focus();
+  }
+
+  function cancelRename(id) {
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    row.querySelector('.alias-display').style.display = '';
+    row.querySelector('.alias-edit-form').style.display = 'none';
+  }
+
+  async function saveRename(e, id) {
+    e.preventDefault();
+    const input = e.target.querySelector('.alias-edit-input');
+    const newName = input.value.trim();
+    try {
+      const res = await fetch(`${API}/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Rename failed');
+      showStatus(`Renamed to "${json.alias}".`);
+      loadFiles();
+    } catch (err) {
+      showStatus(err.message, 'error');
+    }
+  }
+
+  // --- Replace ---
+  function openReplaceModal(id) {
+    document.getElementById('replaceId').value = id;
+    document.getElementById('replaceFileInput').value = '';
+    document.getElementById('replaceModal').style.display = 'flex';
+  }
+
+  function closeReplaceModal() {
+    document.getElementById('replaceModal').style.display = 'none';
+  }
+
+  document.getElementById('replaceForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('replaceId').value;
+    const data = new FormData(e.target);
+    try {
+      const res = await fetch(`${API}/${id}`, { method: 'PATCH', body: data });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Replace failed');
+      showStatus(`File replaced for "${json.alias}".`);
+      closeReplaceModal();
+      loadFiles();
+    } catch (err) {
+      showStatus(err.message, 'error');
+    }
+  });
+
+  // Close modal on backdrop click
+  document.getElementById('replaceModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeReplaceModal();
+  });
+
+  // --- Delete ---
+  async function deleteFile(id, alias) {
+    if (!confirm(`Delete "${alias}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API}/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Delete failed');
+      showStatus(`"${alias}" deleted.`);
+      loadFiles();
+    } catch (err) {
+      showStatus(err.message, 'error');
+    }
+  }
+
+  // --- Copy API URL ---
+  function copyUrl(id, btn) {
+    const url = `${location.origin}/api/files/${id}/raw`;
+    navigator.clipboard.writeText(url).then(() => {
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 2000);
+    });
+  }
+
+  // Initial load
+  loadFiles();
+</script>
+</body>
+</html>
