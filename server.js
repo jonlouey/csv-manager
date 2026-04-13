@@ -49,6 +49,17 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- API key middleware ---
+app.use('/api', (req, res, next) => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) return next(); // no key configured, allow all
+  const provided = req.headers['x-api-key'];
+  if (!provided || provided !== apiKey) {
+    return res.status(401).json({ error: 'Invalid or missing API key.' });
+  }
+  next();
+});
+
 // --- GET /api/files — list all files ---
 app.get('/api/files', (req, res) => {
   const meta = readMeta();

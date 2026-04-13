@@ -24,6 +24,10 @@
     }
     header h1 { font-size: 20px; font-weight: 600; }
     header span { font-size: 13px; color: #666; }
+    .header-key { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .header-key label { font-size: 12px; font-weight: 500; color: #555; white-space: nowrap; }
+    .header-key input { padding: 6px 10px; border: 1px solid #d0d0d0; border-radius: 6px; font-size: 13px; width: 200px; }
+    .key-saved { font-size: 12px; color: #1a6b38; }
 
     main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
 
@@ -170,6 +174,12 @@
   </svg>
   <h1>CSV Manager</h1>
   <span>Upload and manage CSV files for your analytics pipeline</span>
+  <div class="header-key">
+    <label for="apiKeyInput">API Key</label>
+    <input type="password" id="apiKeyInput" placeholder="Enter API key" />
+    <button class="btn btn-secondary btn-sm" onclick="saveApiKey()">Save</button>
+    <span class="key-saved" id="keySaved" style="display:none;">Saved</span>
+  </div>
 </header>
 
 <main>
@@ -238,6 +248,26 @@
 <script>
   const API = '/api/files';
 
+  // --- API key ---
+  function getApiKey() { return localStorage.getItem('csv_api_key') || ''; }
+  function apiHeaders(extra = {}) {
+    const key = getApiKey();
+    return key ? { 'x-api-key': key, ...extra } : { ...extra };
+  }
+  function saveApiKey() {
+    const val = document.getElementById('apiKeyInput').value.trim();
+    localStorage.setItem('csv_api_key', val);
+    const saved = document.getElementById('keySaved');
+    saved.style.display = 'inline';
+    setTimeout(() => saved.style.display = 'none', 2000);
+    loadFiles();
+  }
+  // Load saved key into input on page load
+  window.addEventListener('DOMContentLoaded', () => {
+    const saved = getApiKey();
+    if (saved) document.getElementById('apiKeyInput').value = saved;
+  });
+
   // --- Status bar ---
   let statusTimer;
   function showStatus(msg, type = 'success') {
@@ -261,7 +291,7 @@
 
   // --- Load file list ---
   async function loadFiles() {
-    const res = await fetch(API);
+    const res = await fetch(API, { headers: apiHeaders() });
     const files = await res.json();
     const tbody = document.getElementById('fileList');
 
@@ -313,7 +343,7 @@
     if (!data.get('name')) data.set('name', data.get('file').name.replace(/\.csv$/i, ''));
 
     try {
-      const res = await fetch(API, { method: 'POST', body: data });
+      const res = await fetch(API, { method: 'POST', headers: apiHeaders(), body: data });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Upload failed');
       showStatus(`"${json.alias}" uploaded successfully.`);
@@ -348,7 +378,7 @@
     try {
       const res = await fetch(`${API}/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: apiHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name: newName }),
       });
       const json = await res.json();
@@ -376,7 +406,7 @@
     const id = document.getElementById('replaceId').value;
     const data = new FormData(e.target);
     try {
-      const res = await fetch(`${API}/${id}`, { method: 'PATCH', body: data });
+      const res = await fetch(`${API}/${id}`, { method: 'PATCH', headers: apiHeaders(), body: data });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Replace failed');
       showStatus(`File replaced for "${json.alias}".`);
@@ -396,7 +426,7 @@
   async function deleteFile(id, alias) {
     if (!confirm(`Delete "${alias}"? This cannot be undone.`)) return;
     try {
-      const res = await fetch(`${API}/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API}/${id}`, { method: 'DELETE', headers: apiHeaders() });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Delete failed');
       showStatus(`"${alias}" deleted.`);
